@@ -5,7 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api': 'http://backend:8000'
+      // Local dev: backend on localhost. Docker uses nginx (see nginx.conf), not this proxy.
+      '/api': 'http://localhost:8000'
     }
   }
 })

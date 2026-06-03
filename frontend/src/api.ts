@@ -1,8 +1,10 @@
 import axios from 'axios'
 import type { Listing, ListingDetail, DistrictOverview, Filters } from './types'
 
+// VITE_API_URL is embedded at build time (set it in Railway env vars to your backend URL).
+// Falls back to /api which works with the Vite dev proxy and the Docker nginx proxy.
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: (import.meta.env.VITE_API_URL ?? '') + '/api',
 })
 
 export async function fetchListings(filters: Partial<Filters>): Promise<Listing[]> {

@@ -25,6 +25,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Browser-accessible URL of the backend; localhost works because
+        # the backend port is exposed to the host machine.
+        - VITE_API_URL=http://localhost:8000
     container_name: rzeszow_frontend
     ports:
       - "3000:80"

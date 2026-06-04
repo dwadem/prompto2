@@ -29,6 +29,9 @@ class Settings(BaseSettings):
 
     SCHEDULE_INTERVAL_HOURS: int = 24
 
+    # Comma-separated allowed CORS origins. Use * to allow all (no credentials).
+    CORS_ORIGINS: str = "*"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

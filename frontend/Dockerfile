@@ -7,4 +7,6 @@ RUN npm run build
 
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# nginx processes /etc/nginx/templates/*.template through envsubst at startup,
+# substituting env vars (e.g. BACKEND_URL) and writing to /etc/nginx/conf.d/
+COPY nginx.conf /etc/nginx/templates/default.conf.template

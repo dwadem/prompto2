@@ -42,11 +42,13 @@ function SectionDivider({ title }: { title: string }) {
 }
 
 function NumberInput({
+  id,
   label,
   value,
   onChange,
   placeholder,
 }: {
+  id: string
   label: string
   value: number | null
   onChange: (v: number | null) => void
@@ -54,8 +56,12 @@ function NumberInput({
 }) {
   return (
     <div>
-      <label className="block text-xs text-gray-600 mb-1">{label}</label>
+      <label htmlFor={id} className="block text-xs text-gray-600 mb-1">
+        {label}
+      </label>
       <input
+        id={id}
+        name={id}
         type="number"
         className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
         placeholder={placeholder ?? ''}
@@ -96,7 +102,12 @@ export function FilterSidebar({ filters, onChange, districts }: FilterSidebarPro
 
         {/* District */}
         <SectionDivider title="District" />
+        <label htmlFor="district" className="sr-only">
+          District
+        </label>
         <select
+          id="district"
+          name="district"
           className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           value={filters.district}
           onChange={(e) => set('district', e.target.value)}
@@ -115,6 +126,8 @@ export function FilterSidebar({ filters, onChange, districts }: FilterSidebarPro
           {CONDITIONS.map(({ value, label, dot }) => (
             <label key={value} className="flex items-center gap-2 cursor-pointer select-none">
               <input
+                id={`condition-${value}`}
+                name={`condition-${value}`}
                 type="checkbox"
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-400"
                 checked={filters.finishing_condition.includes(value)}
@@ -129,6 +142,7 @@ export function FilterSidebar({ filters, onChange, districts }: FilterSidebarPro
         {/* Price */}
         <SectionDivider title="Price" />
         <NumberInput
+          id="max-price"
           label="Max price (PLN)"
           value={filters.max_price}
           onChange={(v) => set('max_price', v)}
@@ -138,6 +152,7 @@ export function FilterSidebar({ filters, onChange, districts }: FilterSidebarPro
         {/* All-in Cost */}
         <SectionDivider title="All-in Cost" />
         <NumberInput
+          id="max-all-in"
           label="Max all-in (PLN)"
           value={filters.max_all_in_cost}
           onChange={(v) => set('max_all_in_cost', v)}
@@ -148,12 +163,14 @@ export function FilterSidebar({ filters, onChange, districts }: FilterSidebarPro
         <SectionDivider title="Size" />
         <div className="space-y-2">
           <NumberInput
+            id="min-area"
             label="Min area (m²)"
             value={filters.min_area}
             onChange={(v) => set('min_area', v)}
             placeholder="e.g. 40"
           />
           <NumberInput
+            id="min-rooms"
             label="Min rooms"
             value={filters.min_rooms}
             onChange={(v) => set('min_rooms', v)}
@@ -165,12 +182,14 @@ export function FilterSidebar({ filters, onChange, districts }: FilterSidebarPro
         <SectionDivider title="Yield / Discount" />
         <div className="space-y-2">
           <NumberInput
+            id="min-net-yield"
             label="Min net yield (%)"
             value={filters.min_net_yield}
             onChange={(v) => set('min_net_yield', v)}
             placeholder="e.g. 5"
           />
           <NumberInput
+            id="min-discount"
             label="Min discount (%)"
             value={filters.min_discount}
             onChange={(v) => set('min_discount', v)}
@@ -182,8 +201,12 @@ export function FilterSidebar({ filters, onChange, districts }: FilterSidebarPro
         <SectionDivider title="Sort" />
         <div className="space-y-2">
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Sort by</label>
+            <label htmlFor="sort-by" className="block text-xs text-gray-600 mb-1">
+              Sort by
+            </label>
             <select
+              id="sort-by"
+              name="sort-by"
               className="w-full border border-gray-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               value={filters.sort_by}
               onChange={(e) => set('sort_by', e.target.value)}

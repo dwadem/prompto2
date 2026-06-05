@@ -8,15 +8,20 @@ const api = axios.create({
   baseURL: (import.meta.env.VITE_API_URL ?? '') + '/api',
 })
 
-// If VITE_API_URL is unset, API calls hit the frontend domain and the SPA server
-// returns index.html (200, text/html). Catch that case and surface a clear error
-// instead of letting callers receive an HTML string and crash.
+// Debug: log the base URL at startup so it's visible in browser devtools.
+console.info('[api] baseURL =', api.defaults.baseURL)
+
+// If VITE_API_URL is unset the SPA server returns index.html (text/html) for
+// every /api/* path.  Detect that and surface a readable error.
 api.interceptors.response.use((response) => {
   const ct = (response.headers['content-type'] as string | undefined) ?? ''
   if (ct.startsWith('text/html')) {
+    const builtUrl = import.meta.env.VITE_API_URL ?? '(not set at build time)'
     return Promise.reject(
       new Error(
-        'Backend unreachable — set VITE_API_URL in Railway to your backend service URL and redeploy.'
+        `Backend unreachable. VITE_API_URL baked into this build: "${builtUrl}". ` +
+        'Set VITE_API_URL in Railway Variables to the backend service URL, ' +
+        'clear the build cache, and redeploy the frontend.'
       )
     )
   }

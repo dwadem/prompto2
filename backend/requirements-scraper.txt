@@ -1,0 +1,11 @@
+# Optional dependencies for the live Playwright-based Otodom scraper.
+# Kept separate from requirements.txt so the default (json_cache) image stays
+# lean. To enable scraping:
+#
+#   pip install -r requirements.txt -r requirements-scraper.txt
+#   playwright install chromium        # downloads the browser binary
+#
+# Then run the scraper CLI:
+#   python -m scripts.scrape_otodom --out data/otodom_rzeszow.json
+#
+playwright>=1.44.0

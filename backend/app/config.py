@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     DATA_SOURCE: str = "json_cache"  # or "otodom"
     OTODOM_BASE_URL: str = "https://www.otodom.pl"
     REQUEST_DELAY_S: float = 2.0
+    # Max search-result pages to fetch per transaction type (sale/rent).
+    OTODOM_MAX_PAGES: int = 5
     USER_AGENT: str = "RzeszowYieldAnalyser/1.0 (private research; contact: owner)"
 
     RENO_COST_READY: float = 0.0

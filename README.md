@@ -92,18 +92,53 @@ helpers (alias mapping, number cleaning, JSON/NDJSON/CSV parsing) are covered to
 
 ---
 
-## Enabling the live otodom scraper
+## Collecting live data from Otodom
 
-> **You** are responsible for compliance with otodom.pl's Terms of Service.  
-> The scraper respects `robots.txt`, uses a descriptive User-Agent, and throttles to ≤ 1 req/2s.
+> **You** are responsible for compliance with otodom.pl's Terms of Service and
+> `robots.txt`. Throttle with `REQUEST_DELAY_S` and keep `OTODOM_MAX_PAGES` modest.
+
+Otodom is a Next.js site behind Cloudflare and offers **no public read API** for
+market data (its "Eksport ogłoszeń" feature only exports an *advertiser's own*
+listings). So broad market data requires scraping. Two data sources exist:
+
+| `DATA_SOURCE` | How | Notes |
+|---|---|---|
+| `playwright` | headless Chromium reads each page's `__NEXT_DATA__` JSON | Passes Cloudflare; **recommended** |
+| `otodom` | legacy httpx + BeautifulSoup | Usually blocked by Cloudflare; kept for reference |
+
+### Recommended workflow: scrape locally, commit, deploy
+
+Datacenter IPs (Render/Railway) are frequently blocked by Cloudflare, and the
+headless-browser image is heavy. The reliable approach is to run the scraper on
+your own machine, then commit the output for the `json_cache` source to ingest:
 
 ```bash
-# In .env:
-DATA_SOURCE=otodom
-REQUEST_DELAY_S=2.0   # do not lower below 2
+cd backend
+pip install -r requirements.txt -r requirements-scraper.txt
+playwright install chromium                       # one-time browser download
+
+# Scrape Rzeszów sale + rent flats into a data file:
+python -m scripts.scrape_otodom --out data/otodom_rzeszow.json --pages 5
+#   …or CSV:  --out data/otodom_rzeszow.csv
 ```
 
-Restart the backend. The scheduler re-ingests every `SCHEDULE_INTERVAL_HOURS` hours (default: 24).
+Commit the resulting file under `backend/data/` and redeploy. The app ingests
+every `.json` / `.ndjson` / `.csv` in `DATA_DIR` on startup (see
+"Loading your own data" above). `DATA_SOURCE` can stay `json_cache`.
+
+### Scraping from the running backend (advanced)
+
+To have the backend scrape directly on its schedule, set `DATA_SOURCE=playwright`
+and ensure Playwright + Chromium are installed in the runtime image (add
+`requirements-scraper.txt` and `RUN playwright install --with-deps chromium` to
+`backend/Dockerfile`). The scheduler then re-ingests every
+`SCHEDULE_INTERVAL_HOURS` hours (default: 24). Note: this only works if the
+host's IP isn't blocked by Cloudflare.
+
+> **Heads-up on `finishing_condition`:** search-result data often omits it, so
+> scraped listings may come through as `UNKNOWN` — which the default
+> `INCLUDED_CONDITIONS` filters out. To keep them, add `unknown` to
+> `INCLUDED_CONDITIONS` (they'll be costed as READY, i.e. zero renovation).
 
 ---
 
@@ -117,8 +152,10 @@ backend/
 │   ├── schemas/listing.py   # Pydantic response models
 │   ├── datasources/
 │   │   ├── base.py          # DataSource interface
+│   │   ├── factory.py       # build_datasource(): json_cache / playwright / otodom
 │   │   ├── json_cache.py    # Reads .json/.ndjson/.csv from DATA_DIR (alias + clean)
-│   │   └── otodom_scraper.py# Live scraper (robots.txt + throttle)
+│   │   ├── playwright_scraper.py # Headless-Chromium scraper (reads __NEXT_DATA__)
+│   │   └── otodom_scraper.py# Legacy httpx + BeautifulSoup scraper
 │   ├── services/
 │   │   ├── metrics.py       # Pure metric functions (testable)
 │   │   └── ingestion.py     # DB upsert + condition parsing
@@ -126,6 +163,9 @@ backend/
 │   │   ├── listings.py      # GET /api/listings, GET /api/listings/{id}
 │   │   └── overview.py      # GET /api/overview, GET /api/districts
 │   └── scheduler.py         # APScheduler job
+├── scripts/
+│   └── scrape_otodom.py     # CLI: scrape -> data file for json_cache
+├── requirements-scraper.txt # Optional Playwright deps
 ├── data/
 │   ├── sample_listings.json # 50 fake Rzeszów listings
 │   └── examples/            # illustrative CSV export (not auto-loaded)

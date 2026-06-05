@@ -1,7 +1,8 @@
-FROM python:3.12-slim
+FROM python:3.11-slim
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements-scraper.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-scraper.txt \
+    && playwright install --with-deps chromium
 COPY . .
 RUN mkdir -p data
 # Railway (and most PaaS) inject $PORT at runtime; bind to it, defaulting to

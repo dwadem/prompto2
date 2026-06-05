@@ -14,7 +14,11 @@ class Settings(BaseSettings):
     REQUEST_DELAY_S: float = 2.0
     # Max search-result pages to fetch per transaction type (sale/rent).
     OTODOM_MAX_PAGES: int = 5
-    USER_AGENT: str = "RzeszowYieldAnalyser/1.0 (private research; contact: owner)"
+    USER_AGENT: str = (
+        "Mozilla/5.0 (X11; Linux x86_64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/125.0.0.0 Safari/537.36"
+    )
 
     RENO_COST_READY: float = 0.0
     RENO_COST_FINISHING: float = 1800.0

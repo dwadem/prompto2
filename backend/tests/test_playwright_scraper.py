@@ -17,6 +17,7 @@ from app.datasources.playwright_scraper import (
     _extract_location,
     _extract_next_data,
     _find_listing_items,
+    _is_cloudflare_challenge,
     _num,
     _parse_item,
     _rooms_to_int,
@@ -50,6 +51,23 @@ _ITEM = {
 }
 
 _NEXT_DATA = {"props": {"pageProps": {"data": {"searchAds": {"items": [_ITEM]}}}}}
+
+
+class TestIsCloudflareChallenge(unittest.TestCase):
+    def test_detects_just_a_moment(self):
+        self.assertTrue(_is_cloudflare_challenge("<title>Just a moment...</title>"))
+
+    def test_detects_checking_your_browser(self):
+        self.assertTrue(_is_cloudflare_challenge("Checking your browser before accessing"))
+
+    def test_detects_ray_id(self):
+        self.assertTrue(_is_cloudflare_challenge("Ray ID: abc123 cloudflare"))
+
+    def test_normal_page_false(self):
+        self.assertFalse(_is_cloudflare_challenge('<script id="__NEXT_DATA__">{}'))
+
+    def test_case_insensitive(self):
+        self.assertTrue(_is_cloudflare_challenge("JUST A MOMENT"))
 
 
 class TestExtractNextData(unittest.TestCase):

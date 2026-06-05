@@ -18,17 +18,13 @@ def _run_ingestion() -> None:
     try:
         # Import here to avoid circular imports at module load time
         from app.database import _get_session_local
-        from app.datasources.json_cache import JsonCacheDataSource
-        from app.datasources.otodom_scraper import OtodomScraperDataSource
+        from app.datasources.factory import build_datasource
         from app.services.ingestion import IngestService
 
         settings = get_settings()
         SessionLocal = _get_session_local()
 
-        if settings.DATA_SOURCE == "otodom":
-            datasource = OtodomScraperDataSource()
-        else:
-            datasource = JsonCacheDataSource()
+        datasource = build_datasource(settings.DATA_SOURCE)
 
         db = SessionLocal()
         try:

@@ -47,15 +47,10 @@ async def _run_initial_ingestion() -> None:
     """Background task: ingest sample data after the server is already up."""
     settings = get_settings()
     try:
-        from app.datasources.json_cache import JsonCacheDataSource
-        from app.datasources.otodom_scraper import OtodomScraperDataSource
+        from app.datasources.factory import build_datasource
         from app.services.ingestion import IngestService
 
-        datasource = (
-            OtodomScraperDataSource()
-            if settings.DATA_SOURCE == "otodom"
-            else JsonCacheDataSource()
-        )
+        datasource = build_datasource(settings.DATA_SOURCE)
 
         SessionLocal = _get_session_local()
         db = SessionLocal()

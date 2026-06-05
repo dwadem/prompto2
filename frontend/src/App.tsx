@@ -1,37 +1,71 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { triggerScrape } from './api'
+import { useQueryClient } from '@tanstack/react-query'
+import { startScrape, fetchScrapeStatus } from './api'
 import Dashboard from './pages/Dashboard'
 import Overview from './pages/Overview'
 
+const POLL_INTERVAL_MS = 4_000
+
 function ScrapeButton() {
   const queryClient = useQueryClient()
+  const [running, setRunning] = useState(false)
   const [flashMsg, setFlashMsg] = useState<string | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const { mutate, isPending } = useMutation({
-    mutationFn: triggerScrape,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['listings'] })
-      queryClient.invalidateQueries({ queryKey: ['overview'] })
-      queryClient.invalidateQueries({ queryKey: ['districts'] })
-      setFlashMsg(
-        data.listings_upserted > 0
-          ? `${data.listings_upserted} listings updated`
-          : 'Done — 0 listings (server IP may be blocked by Cloudflare)'
-      )
-    },
-    onError: (err: Error) => {
-      setFlashMsg(`Scrape failed: ${err.message}`)
-    },
-  })
+  function stopPolling() {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+  }
 
-  // Clear the flash message after 6 seconds.
+  function startPolling() {
+    pollRef.current = setInterval(async () => {
+      try {
+        const status = await fetchScrapeStatus()
+        if (!status.running) {
+          stopPolling()
+          setRunning(false)
+          queryClient.invalidateQueries({ queryKey: ['listings'] })
+          queryClient.invalidateQueries({ queryKey: ['overview'] })
+          queryClient.invalidateQueries({ queryKey: ['districts'] })
+          if (status.error) {
+            setFlashMsg(`Scrape failed: ${status.error}`)
+          } else if (status.listings_upserted > 0) {
+            setFlashMsg(`${status.listings_upserted} listings updated`)
+          } else {
+            setFlashMsg('Done — 0 listings (server IP may be blocked by Cloudflare)')
+          }
+        }
+      } catch {
+        // transient poll error — keep polling
+      }
+    }, POLL_INTERVAL_MS)
+  }
+
+  async function handleClick() {
+    if (running) return
+    setFlashMsg(null)
+    try {
+      await startScrape()
+      setRunning(true)
+      startPolling()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setFlashMsg(`Could not start scrape: ${msg}`)
+    }
+  }
+
+  // Clear the flash message after 8 seconds.
   useEffect(() => {
     if (!flashMsg) return
-    const t = setTimeout(() => setFlashMsg(null), 6000)
+    const t = setTimeout(() => setFlashMsg(null), 8000)
     return () => clearTimeout(t)
   }, [flashMsg])
+
+  // Clean up interval on unmount.
+  useEffect(() => () => stopPolling(), [])
 
   return (
     <div className="flex items-center gap-2">
@@ -41,12 +75,12 @@ function ScrapeButton() {
         </span>
       )}
       <button
-        onClick={() => mutate()}
-        disabled={isPending}
+        onClick={handleClick}
+        disabled={running}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border transition-colors disabled:opacity-60 disabled:cursor-not-allowed border-blue-300 text-blue-700 hover:bg-blue-50 active:bg-blue-100"
         title="Scrape Otodom for fresh Rzeszów listings"
       >
-        {isPending ? (
+        {running ? (
           <>
             <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

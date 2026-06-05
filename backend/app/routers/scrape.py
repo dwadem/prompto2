@@ -3,67 +3,85 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api", tags=["scrape"])
 logger = logging.getLogger(__name__)
 
-# Prevent two simultaneous Playwright sessions.
-_scrape_lock = asyncio.Lock()
+# In-process scrape state (single-worker deployment).
+_state: dict = {"running": False, "listings_upserted": 0, "message": "", "error": ""}
 
 
-class ScrapeResult(BaseModel):
-    status: str
+class ScrapeStarted(BaseModel):
+    status: str  # "started" | "already_running"
+
+
+class ScrapeStatus(BaseModel):
+    running: bool
     listings_upserted: int
     message: str
+    error: str
 
 
-@router.post("/scrape", response_model=ScrapeResult)
-async def trigger_scrape() -> ScrapeResult:
-    """Launch a Playwright Otodom scrape and ingest results into the DB.
+async def _run_scrape() -> None:
+    _state["running"] = True
+    _state["listings_upserted"] = 0
+    _state["message"] = ""
+    _state["error"] = ""
 
-    Blocks until the scrape completes (typically 1-3 minutes). Returns 409
-    if a scrape is already running.
-    """
-    if _scrape_lock.locked():
-        raise HTTPException(status_code=409, detail="A scrape is already in progress.")
-
-    async with _scrape_lock:
-        logger.info("Manual scrape triggered via API.")
-        try:
-            from app.datasources.playwright_scraper import PlaywrightOtodomDataSource
-        except ImportError:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "Playwright is not installed on this server. "
-                    "Run: pip install -r requirements-scraper.txt && playwright install chromium"
-                ),
-            )
-
+    logger.info("Background scrape started.")
+    try:
+        from app.datasources.playwright_scraper import PlaywrightOtodomDataSource
         from app.database import _get_session_local
         from app.services.ingestion import IngestService
 
+        db = _get_session_local()()
         try:
-            db = _get_session_local()()
-            try:
-                service = IngestService(datasource=PlaywrightOtodomDataSource(), db=db)
-                count = await service.run()
-            finally:
-                db.close()
-        except Exception as exc:
-            logger.exception("Manual scrape failed: %s", exc)
-            raise HTTPException(status_code=500, detail=f"Scrape failed: {exc}")
+            service = IngestService(datasource=PlaywrightOtodomDataSource(), db=db)
+            count = await service.run()
+        finally:
+            db.close()
 
+        _state["listings_upserted"] = count
         if count == 0:
-            msg = (
+            _state["message"] = (
                 "Scrape completed but returned 0 listings. "
-                "Cloudflare may have blocked the request from this server's IP. "
+                "Cloudflare may have blocked this server's IP. "
                 "Try running the CLI scraper locally instead."
             )
         else:
-            msg = f"Successfully upserted {count} listings."
+            _state["message"] = f"Successfully upserted {count} listings."
+        logger.info("Background scrape finished: %d listings.", count)
 
-        logger.info("Manual scrape finished: %d listings upserted.", count)
-        return ScrapeResult(status="ok", listings_upserted=count, message=msg)
+    except ImportError:
+        _state["error"] = (
+            "Playwright is not installed on this server. "
+            "Run: pip install -r requirements-scraper.txt && playwright install chromium"
+        )
+        logger.error(_state["error"])
+    except Exception as exc:
+        _state["error"] = f"Scrape failed: {exc}"
+        logger.exception("Background scrape failed: %s", exc)
+    finally:
+        _state["running"] = False
+
+
+@router.post("/scrape", response_model=ScrapeStarted)
+async def trigger_scrape(background_tasks: BackgroundTasks) -> ScrapeStarted:
+    """Start a Playwright Otodom scrape in the background and return immediately.
+
+    Poll GET /api/scrape/status to track progress.
+    Returns 409 if a scrape is already running.
+    """
+    if _state["running"]:
+        raise HTTPException(status_code=409, detail="A scrape is already in progress.")
+
+    background_tasks.add_task(_run_scrape)
+    return ScrapeStarted(status="started")
+
+
+@router.get("/scrape/status", response_model=ScrapeStatus)
+async def scrape_status() -> ScrapeStatus:
+    """Return the current scrape state."""
+    return ScrapeStatus(**_state)

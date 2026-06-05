@@ -22,6 +22,40 @@ The sample dataset (~50 fake Rzeszów listings across 5 districts) loads automat
 
 ---
 
+## Loading your own data (json_cache)
+
+With `DATA_SOURCE=json_cache` (the default), the app loads every data file in
+`DATA_DIR` (default `backend/data/`) on each ingestion run. To refresh the data,
+drop a file in that folder and restart/redeploy.
+
+**Supported file types** (detected by extension):
+
+| Extension | Format |
+|---|---|
+| `.json` | a JSON array, a `{"listings": [...]}` object, or a single object |
+| `.ndjson` / `.jsonl` | newline-delimited JSON (one listing object per line) |
+| `.csv` | header row + one listing per row |
+
+**Flexible column names.** Headers may be English or Polish — they're mapped to
+canonical fields automatically. For example: `cena`/`price` → `price_pln`,
+`powierzchnia`/`area` → `area_m2`, `dzielnica` → `district`, `pokoje` → `rooms`,
+`stan` → `finishing_condition`, `link` → `url` (see `_FIELD_ALIASES` in
+`backend/app/datasources/json_cache.py` for the full list).
+
+**Messy numbers are cleaned.** Values like `"450 000 zł"` and `"62,5 m²"` are
+normalised to `450000` and `62.5` before ingestion.
+
+**Required per listing:** `url` (used as the unique key for upsert/dedup). Other
+fields are optional and default sensibly. A minimal CSV example lives at
+[`backend/data/examples/sample_export.csv`](backend/data/examples/sample_export.csv)
+(that `examples/` subfolder is **not** auto-loaded — only the top level of
+`DATA_DIR` is scanned).
+
+Records are de-duplicated by `url`; when multiple files contain the same URL,
+the later file wins.
+
+---
+
 ## Running without Docker (development)
 
 ### Backend
@@ -48,11 +82,13 @@ npm run dev          # http://localhost:5173
 
 ```bash
 cd backend
-source .venv/bin/activate
-pytest tests/ -v
+python3 -m unittest discover -s tests -v
 ```
 
-All metric functions (reno cost, neighbourhood stats, outlier removal, yield, deal score, normalization) are covered with hand-checked numbers.
+Tests use the stdlib `unittest` (no third-party deps required). All metric
+functions (reno cost, neighbourhood stats, outlier removal, yield, deal score,
+normalization) are covered with hand-checked numbers, and the json_cache loader
+helpers (alias mapping, number cleaning, JSON/NDJSON/CSV parsing) are covered too.
 
 ---
 
@@ -81,7 +117,7 @@ backend/
 │   ├── schemas/listing.py   # Pydantic response models
 │   ├── datasources/
 │   │   ├── base.py          # DataSource interface
-│   │   ├── json_cache.py    # Reads *.json files from DATA_DIR
+│   │   ├── json_cache.py    # Reads .json/.ndjson/.csv from DATA_DIR (alias + clean)
 │   │   └── otodom_scraper.py# Live scraper (robots.txt + throttle)
 │   ├── services/
 │   │   ├── metrics.py       # Pure metric functions (testable)
@@ -91,8 +127,11 @@ backend/
 │   │   └── overview.py      # GET /api/overview, GET /api/districts
 │   └── scheduler.py         # APScheduler job
 ├── data/
-│   └── sample_listings.json # 50 fake Rzeszów listings
-└── tests/test_metrics.py
+│   ├── sample_listings.json # 50 fake Rzeszów listings
+│   └── examples/            # illustrative CSV export (not auto-loaded)
+└── tests/
+    ├── test_metrics.py
+    └── test_json_cache.py
 
 frontend/
 ├── src/

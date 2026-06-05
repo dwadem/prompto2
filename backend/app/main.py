@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import init_db, _get_session_local
-from app.routers import listings, overview
+from app.routers import listings, overview, status
 from app.scheduler import start_scheduler
 
 logger = logging.getLogger(__name__)
@@ -37,6 +37,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 app.include_router(listings.router)
 app.include_router(overview.router)
+app.include_router(status.router)
 
 
 # ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import init_db, _get_session_local
-from app.routers import listings, overview
+from app.routers import listings, overview, status
 from app.scheduler import start_scheduler
 
 logger = logging.getLogger(__name__)
@@ -37,31 +37,21 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 app.include_router(listings.router)
 app.include_router(overview.router)
+app.include_router(status.router)
 
 
 # ---------------------------------------------------------------------------
 # Startup
 # ---------------------------------------------------------------------------
 
-@app.on_event("startup")
-async def startup_event() -> None:
-    """Initialise the database and run the first ingestion pass."""
+async def _run_initial_ingestion() -> None:
+    """Background task: ingest sample data after the server is already up."""
     settings = get_settings()
-
-    # Ensure DB tables exist
-    init_db()
-    logger.info("Database initialised.")
-
-    # Run initial ingestion
     try:
-        from app.datasources.json_cache import JsonCacheDataSource
-        from app.datasources.otodom_scraper import OtodomScraperDataSource
+        from app.datasources.factory import build_datasource
         from app.services.ingestion import IngestService
 
-        if settings.DATA_SOURCE == "otodom":
-            datasource = OtodomScraperDataSource()
-        else:
-            datasource = JsonCacheDataSource()
+        datasource = build_datasource(settings.DATA_SOURCE)
 
         SessionLocal = _get_session_local()
         db = SessionLocal()
@@ -74,8 +64,24 @@ async def startup_event() -> None:
     except Exception as exc:
         logger.exception("Initial ingestion failed: %s", exc)
 
-    # Start background scheduler
+
+@app.on_event("startup")
+async def startup_event() -> None:
+    """Initialise DB and scheduler, then kick off ingestion in the background.
+
+    Ingestion is deliberately deferred so the health-check endpoint responds
+    immediately after uvicorn starts; Railway (and other PaaS) probe it before
+    the ingestion job finishes.
+    """
+    # DB schema creation is fast and must finish before any request is served.
+    init_db()
+    logger.info("Database initialised.")
+
+    # Scheduler is lightweight to start.
     start_scheduler(app)
+
+    # Ingestion runs in the background so /api/health responds right away.
+    asyncio.create_task(_run_initial_ingestion())
 
 
 # ---------------------------------------------------------------------------

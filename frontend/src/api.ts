@@ -63,14 +63,18 @@ export async function fetchDistricts(): Promise<string[]> {
   return response.data
 }
 
-export interface ScrapeResult {
-  status: string
+export interface ScrapeStatus {
+  running: boolean
   listings_upserted: number
   message: string
+  error: string
 }
 
-export async function triggerScrape(): Promise<ScrapeResult> {
-  // Playwright can take 1-3 minutes; give it plenty of time.
-  const response = await api.post<ScrapeResult>('/scrape', null, { timeout: 300_000 })
+export async function startScrape(): Promise<void> {
+  await api.post('/scrape')
+}
+
+export async function fetchScrapeStatus(): Promise<ScrapeStatus> {
+  const response = await api.get<ScrapeStatus>('/scrape/status')
   return response.data
 }

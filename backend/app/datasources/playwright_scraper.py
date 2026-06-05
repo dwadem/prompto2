@@ -50,6 +50,17 @@ _STATUS_MAP = {
 # Pure parsing helpers (no I/O — unit tested against fixtures)
 # ---------------------------------------------------------------------------
 
+def _is_cloudflare_challenge(html: str) -> bool:
+    """Return True if the page looks like a Cloudflare bot-challenge interstitial."""
+    lower = html.lower()
+    return (
+        "just a moment" in lower
+        or "checking your browser" in lower
+        or "cf-browser-verification" in lower
+        or ("ray id" in lower and "cloudflare" in lower)
+    )
+
+
 def _extract_next_data(html: str) -> dict:
     """Pull the JSON out of <script id="__NEXT_DATA__">…</script>."""
     match = re.search(
@@ -257,11 +268,28 @@ class PlaywrightOtodomDataSource(DataSource):
 
         results: List[dict] = []
         async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=True)
+            browser = await pw.chromium.launch(
+                headless=True,
+                args=[
+                    # Suppress navigator.webdriver — Cloudflare checks this.
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                ],
+            )
             context = await browser.new_context(
+                # Real Chrome UA; the custom "RzeszowYieldAnalyser" UA is
+                # trivially fingerprinted as a bot.
                 user_agent=self._user_agent,
                 locale="pl-PL",
                 viewport={"width": 1366, "height": 900},
+                extra_http_headers={
+                    "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7",
+                    "Accept": (
+                        "text/html,application/xhtml+xml,application/xml;"
+                        "q=0.9,image/avif,image/webp,*/*;q=0.8"
+                    ),
+                },
             )
             page = await context.new_page()
             try:
@@ -281,11 +309,26 @@ class PlaywrightOtodomDataSource(DataSource):
         for page_no in range(1, self._max_pages + 1):
             url = f"{base}?page={page_no}" if page_no > 1 else base
             try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-                await page.wait_for_selector("script#__NEXT_DATA__", timeout=15_000)
+                # "load" waits for window.onload so Cloudflare JS challenges
+                # have time to resolve before we look for __NEXT_DATA__.
+                await page.goto(url, wait_until="load", timeout=60_000)
+                # state="attached": script tags are never "visible" (the
+                # Playwright default), so wait for DOM presence only.
+                await page.wait_for_selector(
+                    "script#__NEXT_DATA__", state="attached", timeout=30_000
+                )
                 html = await page.content()
             except Exception as exc:  # noqa: BLE001 - log and stop this path
                 logger.error("Failed to load %s (page %d): %s", path, page_no, exc)
+                break
+
+            if _is_cloudflare_challenge(html):
+                logger.warning(
+                    "Cloudflare challenge detected on %s — this server's IP is "
+                    "likely blocked. Run the CLI scraper from a local/residential "
+                    "machine instead: python -m scripts.scrape_otodom",
+                    url,
+                )
                 break
 
             items = _find_listing_items(_extract_next_data(html))

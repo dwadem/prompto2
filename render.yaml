@@ -26,8 +26,6 @@ services:
         value: "sqlite:////var/data/rzeszow.db"
       - key: CORS_ORIGINS
         value: "*"
-      - key: PLAYWRIGHT_SCRAPE_ENABLED
-        value: "true"
 
   # ── Frontend ───────────────────────────────────────────────────────────────
   - type: web

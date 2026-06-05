@@ -3,9 +3,9 @@ services:
   - type: web
     name: rzeszow-backend
     runtime: docker
-    # Paths are relative to the repo root.
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    # rootDir makes Render treat backend/ as the project root, so it finds
+    # backend/Dockerfile automatically (dockerfilePath/context default to it).
+    rootDir: backend
     plan: free
     envVars:
       - key: DATA_SOURCE
@@ -21,12 +21,12 @@ services:
   - type: web
     name: rzeszow-frontend
     runtime: static
-    # buildCommand runs from the repo root.
-    buildCommand: cd frontend && npm ci && npm run build
-    staticPublishPath: ./frontend/dist
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
     # VITE_API_URL must be set manually in the Render dashboard after the
-    # backend service is deployed (Render shows its URL there).
-    # Set it to: https://<your-backend>.onrender.com
+    # backend service is deployed, then trigger a redeploy so Vite bakes it in.
+    # Value: https://<your-backend>.onrender.com
     envVars:
       - key: VITE_API_URL
         sync: false

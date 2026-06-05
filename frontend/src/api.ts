@@ -1,10 +1,26 @@
 import axios from 'axios'
 import type { Listing, ListingDetail, DistrictOverview, Filters } from './types'
 
-// VITE_API_URL is embedded at build time (set it in Railway env vars to your backend URL).
-// Falls back to /api which works with the Vite dev proxy and the Docker nginx proxy.
+// VITE_API_URL is embedded at build time.
+// On Railway: set VITE_API_URL in the frontend service's Variables to the backend service URL.
+// Locally: Vite dev proxy rewrites /api → http://localhost:8000.
 const api = axios.create({
   baseURL: (import.meta.env.VITE_API_URL ?? '') + '/api',
+})
+
+// If VITE_API_URL is unset, API calls hit the frontend domain and the SPA server
+// returns index.html (200, text/html). Catch that case and surface a clear error
+// instead of letting callers receive an HTML string and crash.
+api.interceptors.response.use((response) => {
+  const ct = (response.headers['content-type'] as string | undefined) ?? ''
+  if (ct.startsWith('text/html')) {
+    return Promise.reject(
+      new Error(
+        'Backend unreachable — set VITE_API_URL in Railway to your backend service URL and redeploy.'
+      )
+    )
+  }
+  return response
 })
 
 export async function fetchListings(filters: Partial<Filters>): Promise<Listing[]> {

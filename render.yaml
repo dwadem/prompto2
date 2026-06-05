@@ -1,29 +1,26 @@
+databases:
+  - name: rzeszow-db
+    plan: free
+    databaseName: rzeszow
+    user: rzeszow
+
 services:
   # ── Backend ────────────────────────────────────────────────────────────────
   - type: web
     name: rzeszow-backend
     runtime: docker
     rootDir: backend
-    # "starter" plan is required for the persistent disk below ($7/mo).
-    # Downgrade to "free" if you accept losing the SQLite DB on every restart
-    # (the app re-seeds from the committed sample JSON automatically, so it
-    # still works — you just lose any Playwright-scraped data).
-    plan: starter
+    plan: free
     healthCheckPath: /api/health
-    # Persistent disk keeps the SQLite DB across restarts and deploys.
-    # DATA_DIR stays at /app/data (committed JSON files in the Docker image);
-    # only the database file lives on the disk.
-    disk:
-      name: rzeszow-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: rzeszow-db
+          property: connectionString
       - key: DATA_SOURCE
         value: json_cache
       - key: DATA_DIR
         value: /app/data
-      - key: DATABASE_URL
-        value: "sqlite:////var/data/rzeszow.db"
       - key: CORS_ORIGINS
         value: "*"
 
@@ -35,8 +32,7 @@ services:
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
     # Set VITE_API_URL in the Render dashboard to your backend URL
-    # (https://rzeszow-backend.onrender.com), then redeploy the frontend
-    # so Vite bakes it into the JS bundle.
+    # (https://rzeszow-backend.onrender.com), then redeploy the frontend.
     envVars:
       - key: VITE_API_URL
         sync: false

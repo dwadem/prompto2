@@ -36,11 +36,10 @@ def _get_engine():
     global _engine
     if _engine is None:
         settings = get_settings()
+        url = make_url(settings.DATABASE_URL)
         _ensure_sqlite_dir(settings.DATABASE_URL)
-        _engine = create_engine(
-            settings.DATABASE_URL,
-            connect_args={"check_same_thread": False},
-        )
+        connect_args = {"check_same_thread": False} if url.drivername.startswith("sqlite") else {}
+        _engine = create_engine(settings.DATABASE_URL, connect_args=connect_args)
     return _engine
 
 

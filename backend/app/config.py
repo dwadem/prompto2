@@ -31,6 +31,11 @@ class Settings(BaseSettings):
 
     SCHEDULE_INTERVAL_HOURS: int = 24
 
+    # Set to True to enable a daily Playwright scrape job.
+    # Requires: pip install -r requirements-scraper.txt && playwright install chromium
+    # The job runs once per day at a random hour chosen at startup.
+    PLAYWRIGHT_SCRAPE_ENABLED: bool = False
+
     # Comma-separated allowed CORS origins. Use * to allow all (no credentials).
     CORS_ORIGINS: str = "*"
 

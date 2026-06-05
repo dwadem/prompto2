@@ -62,3 +62,15 @@ export async function fetchDistricts(): Promise<string[]> {
   const response = await api.get<string[]>('/districts')
   return response.data
 }
+
+export interface ScrapeResult {
+  status: string
+  listings_upserted: number
+  message: string
+}
+
+export async function triggerScrape(): Promise<ScrapeResult> {
+  // Playwright can take 1-3 minutes; give it plenty of time.
+  const response = await api.post<ScrapeResult>('/scrape', null, { timeout: 300_000 })
+  return response.data
+}
